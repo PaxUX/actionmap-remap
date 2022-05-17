@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Star Citizen Joystick Remapper</title>
+<style>
+
+table, th, td {
+  border: 1px solid;
+}
+tr:nth-child(even)   {
+   padding-top: 12px;
+   padding-bottom: 12px;
+   text-align: left;
+   background-color: #04AA6D;
+   color: white;    
+}  
+.tablestyle {
+  font-family: Arial, Helvetica, sans-serif;
+  color: rgb(255, 246, 208);
+   padding-top: 12px;
+   padding-bottom: 12px;
+   text-align: right;
+
+   background-color: #001d47;
+   border: 20px solid;
+   padding-inline: 10px;
+}
+body {
+   background-color: beige;
+}
+p {
+   font-size: 1.5rem;
+    letter-spacing: 1px;
+}
+textarea  {
+    font-size: .8rem;
+    letter-spacing: 1px;
+}
+textarea {
+   height: 400px; 
+   width: 1200px;
+    padding: 10px;
+    max-width: 100%;
+    line-height: 1.5;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    box-shadow: 1px 1px 1px #999;
+}
+
+label {
+    display: block;
+    margin-bottom: 10px;
+}
+</style>      
+</head>
+<script>
+//textarea {
+//  width: auto; 
+//}
+</script>
+
+
+<body>
+<p>Write by: PaxUX</p>    
+<p>Usage: Windows will reorder USB devices sometime and then Star Citzen will no longer have the correct button maps.<br>
+This takes an existing working actionmaps.xml (You should always be manually backing up this file anytime you change your binds)<br>
+\Roberts Space Industries\StarCitizen\(PTU or LIVE)\USER\Client\0\Profiles\default\actionmaps.xml <br>
+Then after Windows changes the device order or if you have to delete Star Citizen USER directory this will help get back the old binds<br></p>
+
+<h3>Backed up Working XML - actionmaps.xml</h3>
+<textarea id="xmlData" name="xmlData" ></textarea>
+
+
+
+<br>
+<h3>New XML actionmaps.xml - Maybe after deletion of USER - missing binds... Needed for new Device Order which is the OPTIONS xml stuff</h3>
+<textarea id="xmlData2"></textarea>
+</div>
+
+
+<br><br>
+   <button id="BUTloadXML" onclick="ReadXMLstuff()">Load XML files into this Page</button>
+<br><br>
+   <div id="main"></div>
+   <div id="main2"></div>
+   <button id="BUTcreate" onclick="MoveBinds()" disabled="true">Create XML from Remap table</button>
+<br>
+
+<textarea id="XMLoutput"></textarea>
+
+
+
+
+
+
+<script language="javascript" type="text/javascript">
+// JSON for XML   
+let profileInputIn1 = {} ;
+let profileInputIn2 = {} ;
+let profileInputOut = {} ;
+let profileActionMaps = {};
+// JSON for Keymaps
+let profileBinds1 = {} ;
+let profileBinds2 = {} ;
+// JSON remaps for find/replace
+let remapJS = {} ;
+//Max entries for array
+let NumJoy = 0, NumCombo = 0;
+//remote lasters
+let tableBooks = document.getElementById('books');
+
+function ReadXMLstuff () {
+   const loadbutton = document.getElementById('BUTloadXML');
+   loadbutton.disabled = true;
+   //Convert XML to JSON - USB Device List
+   BuildProfile(document.getElementById('xmlData').value, profileInputIn1);
+   BuildProfile(document.getElementById('xmlData2').value, profileInputIn2);
+   //Get all the Keybinds
+   BuildProfileBinds(document.getElementById('xmlData').value, profileBinds1);
+   BuildProfileBinds(document.getElementById('xmlData2').value, profileBinds2);
+   //Build out a table with all the USB devices
+   BuildTableUSB(profileInputIn2, profileInputIn1);
+
+   const createbutton = document.getElementById('BUTcreate');
+   createbutton.disabled = false;
+}
+
+
+//this is were the magic happens
+function MoveBinds() {
+//output text
+    let XMLDoc = "<ActionMaps>\n";
+//Reset values if a rerun        
+    remapJS = {} ;
+//Get Action setup
+   let parser = new DOMParser();
+   let xmlOldProfile = parser.parseFromString(document.getElementById('xmlData').value, 'text/xml');
+   let xmlNewProfile = parser.parseFromString(document.getElementById('xmlData2').value, 'text/xml');
+   //Setup XML loops
+   let ActionProfile = xmlNewProfile.querySelectorAll('ActionProfiles');
+
+//console.log(ActionProfile[0].attributes);
+    XMLDoc += "<ActionProfiles "
+    for (i=0; i < ActionProfile[0].attributes.length; i++) {
+        XMLDoc += ActionProfile[0].attributes[i].nodeName + '="';
+        XMLDoc += ActionProfile[0].attributes[i].value + '" ';
+    }
+    XMLDoc += ">\n";
+
+//keyboard + Gamepad  There isn't any remap logic here they should just map ok
+    let optionsMap = xmlOldProfile.querySelectorAll('options');
+    optionsMap.forEach(optionNode => {
+      if (optionNode.attributes["type"].value != "joystick") {
+        XMLDoc += optionNode.outerHTML + "\n";
+      }
+    });  //optionsMap.foreach
+      
+//joysticks
+    LoopI = 0;
+    optionsMap = xmlNewProfile.querySelectorAll('options');
+    optionsMap.forEach(optionNode => {
+        if (optionNode.attributes["type"].value == "joystick") {
+            ++LoopI;
+            //Setup Options with atts
+            XMLDoc += "<options "
+            for (i=0; i < optionNode.attributes.length; i++) {
+                XMLDoc += optionNode.attributes[i].nodeName + '="';
+                XMLDoc += optionNode.attributes[i].value + '" ';
+            }
+            //Find if remapped
+            var e = document.getElementById("USBremap" + LoopI );
+            // if not "dont remap"
+            if (e.value != 0) {
+                //Remap Selected
+                oldJS = "js" + optionNode.attributes["instance"].value;
+                newJS = "js" + e.value;
+                remapJS[oldJS] = newJS;
+
+                //find any Joystick subtags
+                if (profileInputIn1.joystick[e.value].XML !== undefined) {
+                    XMLDoc += ">" + profileInputIn1.joystick[e.value].XML ; 
+                } else {XMLDoc += "/>\n"} 
+                if (profileInputIn1.joystick[e.value].XML !== undefined) {
+                XMLDoc += "</options>\n";
+                }
+            } //e.value
+            else { XMLDoc += "/>\n"; }
+            //XMLDoc += LoopI;
+        }
+    });  //optionsMap.foreach
+
+//Build out the REBINDS
+    Object.keys(profileBinds1).forEach(function(key) {
+        XMLDoc += '<actionmap name="' + key + '">\n';
+        Object.keys(profileBinds1[key]).forEach(function(key2) {
+
+//do replace if JS numbers different, step both the same and only remap if required
+            oldJS = profileBinds1[key][key2] ;
+            newJS = oldJS;
+            //see if remap required
+            let foundRemap = false;
+            Object.keys(remapJS).forEach(function(KEYoldJS) {
+                //console.log(remapJS[KEYoldJS]);
+                if (oldJS.includes(remapJS[KEYoldJS]) ) {
+                  foundRemap = true;
+                  newJS = oldJS.replace(remapJS[KEYoldJS] + "_", KEYoldJS + "_");
+                }
+            });
+            //only output remaps
+            if (foundRemap) {
+               XMLDoc += '\t<action name="' + key2 + '">\n'
+               XMLDoc += '\t\t<rebind input="' + newJS + '"/>\n'; 
+               XMLDoc += '\t</action>\n';
+            }
+        });
+        XMLDoc += '</actionmap>\n';
+    });
+
+//close out file
+    XMLDoc += "</ActionProfiles>\n</ActionMaps>";
+    let XMLoutputtext = document.getElementById("XMLoutput");
+    XMLoutputtext.innerHTML = XMLDoc;
+}
+
+
+
+
+
+function BuildTableUSB (fixedLIST, comboList) {
+   //Joy Count Elements (don't know a nice Js way of doing this)
+   //these are global variable, bad Pax, bad!
+   try { while (1) { ttt = fixedLIST.joystick[++NumJoy].USB ;  } } 
+   catch (err) { NumJoy-- };
+   try { while (1) { ttt = comboList.joystick[++NumCombo].USB ;  } } 
+   catch (err) { NumCombo-- };
+ 
+   var Root = document.createDocumentFragment();
+   var ItemTMAIN = document.createElement("table");
+   ItemTMAIN.classList.add('tablestyle');
+   var ItemT = document.createElement('TBODY');
+   ItemTMAIN.appendChild(ItemT);
+
+   for (iJOY = 1; iJOY <= NumJoy; iJOY++) {
+      ItemTMAIN.appendChild( document.createElement("tr"));
+      
+      var itemTD = document.createElement("td");
+      itemTD.appendChild( document.createTextNode( fixedLIST.joystick[iJOY].USB ) );
+      ItemTMAIN.appendChild(itemTD);
+
+      var itemTD2 = document.createElement("td");
+      // Make Combo box of usb
+      for (iCOMBO = 1; iCOMBO <= NumCombo; iCOMBO++) {
+            //Create a DropDownList element.
+            var ddlUSBdrop = document.createElement("SELECT");
+            var option = document.createElement("OPTION");
+            //Not everything needs to be remapped, add a default
+            option.innerHTML = "Don't Remap";
+            option.value = 0;
+            ddlUSBdrop.options.add(option);
+            ddlUSBdrop.id = "USBremap" + iJOY;
+            //Add the other USB Options to the DropDownList.
+            for (var i = 1; i <= NumCombo; i++) {
+                option = document.createElement("OPTION");
+                option.innerHTML = comboList.joystick[i].USB;
+                option.value = i;
+                //add to Drop
+                ddlUSBdrop.options.add(option);
+            }
+      } // iCOMBO
+      itemTD2.appendChild(ddlUSBdrop);
+      ItemTMAIN.appendChild(itemTD2);
+   } //iJOY
+   Root.appendChild(ItemTMAIN);
+   //Root2 = Root;
+   document.getElementById("main").appendChild(Root);
+   //document.getElementById("main2").appendChild(Root2);
+
+} //BuildTableUSB
+
+
+
+
+
+function BuildProfileBinds(xmlContent, profileBinds) {
+//   let xmlContent = htmlToText(document.getElementById('xmlData').innerHTML);
+//   let profileBinds = {} ;
+   let parser = new DOMParser();
+   let xmlDOM = parser.parseFromString(xmlContent, 'text/xml');
+   //Setup XML loops
+   let actionMap = xmlDOM.querySelectorAll('actionmap');
+
+   actionMap.forEach(joyXmlNode => {
+       if (profileBinds[joyXmlNode.attributes["name"].value] === undefined) 
+            { profileBinds[joyXmlNode.attributes["name"].value] = {} ; }
+
+      for(iLoop = 0; iLoop < joyXmlNode.children.length; iLoop++) {
+         try{
+            if (profileBinds[joyXmlNode.attributes["name"].value][joyXmlNode.children[iLoop].attributes["name"].value] === undefined) 
+               { profileBinds[joyXmlNode.attributes["name"].value][joyXmlNode.children[iLoop].attributes["name"].value] = {} ; }
+            profileBinds[joyXmlNode.attributes["name"].value][joyXmlNode.children[iLoop].attributes["name"].value] = joyXmlNode.children[iLoop].children[0].attributes["input"].value;
+            //console.log( joyXmlNode.attributes["name"].value );
+            //console.log( joyXmlNode.children[iLoop].children[0].attributes["input"] );
+         } catch(err){ console.log("J:" + err.message) }
+      } //foreach
+
+   }); //joyMap.forEach(joyXmlNode
+} // BuildProfileBinds
+
+function BuildProfile(xmlContent, profileInputIn) {
+   let parser = new DOMParser();
+   let xmlDOM = parser.parseFromString(xmlContent, 'text/xml');
+   //Setup XML loops
+   let optionsMap = xmlDOM.querySelectorAll('options');
+   let actionMap = xmlDOM.querySelectorAll('action');
+
+   //Create Each USB Devices JSON objects from XML
+   optionsMap.forEach(bookXmlNode => {
+      curInputType = bookXmlNode.attributes["type"].value ;  // joystick, keyboard
+      curInputInstance = bookXmlNode.attributes["instance"].value; // 1, 2, etc
+
+      //build out the Arrays required to store XML
+      try{
+         if (profileInputIn[curInputType] === undefined) { profileInputIn[curInputType] = {} ; }
+         if (profileInputIn[curInputType][curInputInstance] === undefined) {
+            profileInputIn[curInputType][curInputInstance] = {} ;
+         };
+      } catch(err) {console.log(err.message);}
+      // CIG USB Device ID -> output order important as this is the windows shit that keeps breaking
+      try{
+         profileInputIn[curInputType][curInputInstance]["USB"] = bookXmlNode.attributes["Product"].value;
+      } catch(err) {console.log("try:" + curInputInstance + ":" + err.message);}
+      
+      //Save Custom Joystick sesitive / invert etc
+      if (bookXmlNode.children.length > 0) {
+         if (profileInputIn[curInputType][curInputInstance]["XML"] === undefined) {
+            profileInputIn[curInputType][curInputInstance]["XML"] = {} ;
+         };      
+         profileInputIn[curInputType][curInputInstance]["XML"] = bookXmlNode.innerHTML;
+      }
+
+      //Setup prefix to see if keybind output for this input
+      switch (curInputType) {
+         case "keyboard":
+            preFix="kb" + curInputInstance + "_";
+         break;
+         case "joystick":
+            preFix="js" + curInputInstance + "_";
+         break;
+         case "gamepad":
+            preFix="gp" + curInputInstance + "_";
+         default:
+            preFix="Not Available";
+      } //swtich input
+
+/*      
+      actionMap.forEach(joyXmlNode => {
+         //add if right input
+         checkStr = joyXmlNode.children[0].attributes["input"].value;
+
+         if ( checkStr.startsWith(preFix) ) {
+            let jrow = document.createElement('tr');
+            let jtd = document.createElement('td');
+            jtd.innerText = joyXmlNode.attributes["name"].value;
+            jrow.appendChild(jtd);
+
+            let jtd2 = document.createElement('td');
+            jtd2.innerText = checkStr;
+            jrow.appendChild(jtd2);
+            
+      //    AddStuff(profileInputIn1, curInputType, curInputInstance, joyXmlNode.attributes["name"].value);
+            tableBooks.children[1].appendChild(jrow);
+         } // if checkStr
+
+      }); //joyMap.forEach(joyXmlNode
+*/
+
+   }); // books.forEach(bookXmlNode
+} // BuildProfile
+
+function htmlToText(html) {
+   var temp = document.createElement('div');
+   temp.innerHTML = html;
+   return temp.textContent; // Or return temp.innerText if you need to return only visible text. It's slower.
+}
+
+    </script>
+</body>
+</html>
