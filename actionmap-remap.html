@@ -209,6 +209,10 @@ function MoveBinds() {
                   newJS = oldJS.replace(remapJS[KEYoldJS] + "_", KEYoldJS + "_");
                 }
             });
+            // Always output if not a Joystick
+            if (oldJS.startsWith("js") == false) {
+               foundRemap = true;
+            } 
             //only output remaps
             if (foundRemap) {
                XMLDoc += '\t<action name="' + key2 + '">\n'
@@ -383,13 +387,6 @@ function BuildProfile(xmlContent, profileInputIn) {
 function htmlToText(html) {
    var temp = document.createElement('div');
    temp.innerHTML = html;
-   return temp.textContent; // Or return temp.innerText if you need to return only visible text. It's slower.
-}
-
-    </script>
-</body>
-</html>
-ml;
    return temp.textContent; // Or return temp.innerText if you need to return only visible text. It's slower.
 }
 
