@@ -64,7 +64,7 @@ label {
 
 
 <body>
-<p>Write by: PaxUX</p>    
+<p>Write by: PaxUX (v1.1)</p>    
 <p>Usage: Windows will reorder USB devices sometime and then Star Citzen will no longer have the correct button maps.<br>
 This takes an existing working actionmaps.xml (You should always be manually backing up this file anytime you change your binds)<br>
 \Roberts Space Industries\StarCitizen\(PTU or LIVE)\USER\Client\0\Profiles\default\actionmaps.xml <br>
@@ -107,10 +107,15 @@ let profileBinds1 = {} ;
 let profileBinds2 = {} ;
 // JSON remaps for find/replace
 let remapJS = {} ;
+// Device Options
+let profileIn1DeviceOptions = {};
+let profileIn2DeviceOptions = {};
 //Max entries for array
 let NumJoy = 0, NumCombo = 0;
 //remote lasters
 let tableBooks = document.getElementById('books');
+
+
 
 function ReadXMLstuff () {
    const loadbutton = document.getElementById('BUTloadXML');
@@ -118,6 +123,8 @@ function ReadXMLstuff () {
    //Convert XML to JSON - USB Device List
    BuildProfile(document.getElementById('xmlData').value, profileInputIn1);
    BuildProfile(document.getElementById('xmlData2').value, profileInputIn2);
+   //See if Device Options in XML, ignores any in second XML
+   BuildDeviceOptions(document.getElementById('xmlData').value, profileIn1DeviceOptions);
    //Get all the Keybinds
    BuildProfileBinds(document.getElementById('xmlData').value, profileBinds1);
    BuildProfileBinds(document.getElementById('xmlData2').value, profileBinds2);
@@ -127,6 +134,33 @@ function ReadXMLstuff () {
    const createbutton = document.getElementById('BUTcreate');
    createbutton.disabled = false;
 }
+
+
+//New Change 20220610
+function BuildDeviceOptions (xmlContent, pinDevOp)
+{
+   let parser = new DOMParser();
+   let xmlDOM = parser.parseFromString(xmlContent, 'text/xml');
+   //Setup XML loops
+   let DevOps = xmlDOM.querySelectorAll('deviceoptions');
+
+   DevOps.forEach(devopNode => {
+      curName = devopNode.attributes["name"].value ;  // USB Product ID used to remap on
+
+      //build out the Arrays required to store XML
+      try{
+         if (pinDevOp[curName] === undefined) { pinDevOp[curName] = {} ; }
+      } catch(err) {console.log(err.message);}
+      
+      if (devopNode.children.length > 0) {
+         if (pinDevOp[curName]["XML"] === undefined) {
+            pinDevOp[curName]["XML"] = {} ;
+         };      
+         pinDevOp[curName]["XML"] = devopNode.innerHTML;
+      }
+
+   }); //joyMap.forEach(devopNode
+} // BuildDeviceOptions
 
 
 //this is were the magic happens
@@ -150,8 +184,38 @@ function MoveBinds() {
     }
     XMLDoc += ">\n";
 
+//Do DeviceOptions Remaps
+   //Find if remapped
+   LoopI = 0;      
+   let NoDups = {};
+   let optionsMap = xmlOldProfile.querySelectorAll('options');
+   optionsMap = xmlNewProfile.querySelectorAll('options');
+   optionsMap.forEach(optionNode => {
+      if (optionNode.attributes["type"].value == "joystick") {
+         ++LoopI;
+         var e = document.getElementById("USBremap" + LoopI );
+         // if not "dont remap"
+         if (e.value != 0) {
+               //Get Old USB Product
+               oldJS = optionNode.attributes["Product"].value;
+               //console.log(e[e.value].innerText);
+               try{
+                  if (NoDups[oldJS] != 1) {
+                     //rename the device option
+                     XMLDoc += '<deviceoptions name="' + e[e.value].innerText 
+                           + '">' + profileIn1DeviceOptions[oldJS].XML + '</deviceoptions>' + "\n";
+                     NoDups[oldJS] = 1;
+                  }
+               } catch (err) {}
+         } //e.value
+      }  // if Joystick
+   } );  // optionsMap.ForEach
+
+
+
+
 //keyboard + Gamepad  There isn't any remap logic here they should just map ok
-    let optionsMap = xmlOldProfile.querySelectorAll('options');
+    optionsMap = xmlOldProfile.querySelectorAll('options');
     optionsMap.forEach(optionNode => {
       if (optionNode.attributes["type"].value != "joystick") {
         XMLDoc += optionNode.outerHTML + "\n";
@@ -287,7 +351,6 @@ function BuildTableUSB (fixedLIST, comboList) {
 
 
 
-
 function BuildProfileBinds(xmlContent, profileBinds) {
 //   let xmlContent = htmlToText(document.getElementById('xmlData').innerHTML);
 //   let profileBinds = {} ;
@@ -312,6 +375,8 @@ function BuildProfileBinds(xmlContent, profileBinds) {
 
    }); //joyMap.forEach(joyXmlNode
 } // BuildProfileBinds
+
+
 
 function BuildProfile(xmlContent, profileInputIn) {
    let parser = new DOMParser();
@@ -358,28 +423,6 @@ function BuildProfile(xmlContent, profileInputIn) {
          default:
             preFix="Not Available";
       } //swtich input
-
-/*      
-      actionMap.forEach(joyXmlNode => {
-         //add if right input
-         checkStr = joyXmlNode.children[0].attributes["input"].value;
-
-         if ( checkStr.startsWith(preFix) ) {
-            let jrow = document.createElement('tr');
-            let jtd = document.createElement('td');
-            jtd.innerText = joyXmlNode.attributes["name"].value;
-            jrow.appendChild(jtd);
-
-            let jtd2 = document.createElement('td');
-            jtd2.innerText = checkStr;
-            jrow.appendChild(jtd2);
-            
-      //    AddStuff(profileInputIn1, curInputType, curInputInstance, joyXmlNode.attributes["name"].value);
-            tableBooks.children[1].appendChild(jrow);
-         } // if checkStr
-
-      }); //joyMap.forEach(joyXmlNode
-*/
 
    }); // books.forEach(bookXmlNode
 } // BuildProfile
